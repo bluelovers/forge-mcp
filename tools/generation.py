@@ -1,6 +1,9 @@
 from pathlib import Path
 
+import mcp.types as mcp_types
+
 from config import OUTPUT_DIR, TIMEOUT_GENERATION
+from fastmcp.utilities.types import Image
 from mcp_instance import mcp
 from utils import decode_and_save, encode_image, forge_client, format_error
 
@@ -17,7 +20,8 @@ async def txt2img(
     seed: int = -1,
     batch_size: int = 1,
     save_path: str = "output.png",
-) -> str:
+    return_image: bool = False,
+) -> str | list[str | mcp_types.ImageContent]:
     """
     Generate one or more images from a text prompt using Stable Diffusion Forge.
 
@@ -38,6 +42,11 @@ async def txt2img(
         batch_size: Number of images to generate in one request.
         save_path: Filename for the output PNG. Relative paths are placed inside
                    OUTPUT_DIR; absolute paths are used as-is.
+        return_image: When True, also embed the generated image(s) in the tool
+                   response as MCP image content blocks. This only works with
+                   clients that render images (e.g. LM Studio, Claude Desktop);
+                   other clients receive them as opaque blocks. Defaults to
+                   False, so the response is text-only and works everywhere.
     """
     payload = {
         "prompt": prompt,
@@ -69,11 +78,16 @@ async def txt2img(
         decode_and_save(img_b64, str(out))
         saved.append(str(out))
 
-    return (
+    summary = (
         f"Generated {len(saved)} image(s).\n"
         f"Saved to: {', '.join(saved)}\n"
         f"Seeds used: {seeds}"
     )
+
+    if return_image:
+        return [summary, *(Image(path=str(out)).to_image_content() for out in saved)]
+
+    return summary
 
 
 @mcp.tool()
@@ -89,7 +103,8 @@ async def img2img(
     sampler_name: str = "Euler a",
     seed: int = -1,
     save_path: str = "output_img2img.png",
-) -> str:
+    return_image: bool = False,
+) -> str | list[str | mcp_types.ImageContent]:
     """
     Transform an existing image guided by a text prompt (image-to-image).
 
@@ -109,6 +124,10 @@ async def img2img(
         sampler_name: Sampler to use.
         seed: RNG seed (-1 for random).
         save_path: Filename for the output PNG. Relative paths land in OUTPUT_DIR.
+        return_image: When True, also embed the result image in the tool response
+                   as an MCP image content block. Only works with clients that
+                   render images (e.g. LM Studio, Claude Desktop). Defaults to
+                   False, so the response is text-only and works everywhere.
     """
     b64 = encode_image(image_path)
 
@@ -143,7 +162,10 @@ async def img2img(
 
     out = _resolve_path(save_path)
     decode_and_save(images[0], str(out))
-    return f"img2img complete. Saved to '{out}'. Seed: {used_seed}"
+    summary = f"img2img complete. Saved to '{out}'. Seed: {used_seed}"
+    if return_image:
+        return [summary, Image(path=str(out)).to_image_content()]
+    return summary
 
 
 @mcp.tool()
@@ -160,7 +182,8 @@ async def inpaint(
     inpainting_fill: int = 1,
     seed: int = -1,
     save_path: str = "output_inpaint.png",
-) -> str:
+    return_image: bool = False,
+) -> str | list[str | mcp_types.ImageContent]:
     """
     Inpaint (fill or redraw) a masked region of an existing image.
 
@@ -182,6 +205,10 @@ async def inpaint(
                          0=fill, 1=original, 2=latent noise, 3=latent nothing.
         seed: RNG seed (-1 for random).
         save_path: Filename for the output PNG. Relative paths land in OUTPUT_DIR.
+        return_image: When True, also embed the result image in the tool response
+                   as an MCP image content block. Only works with clients that
+                   render images (e.g. LM Studio, Claude Desktop). Defaults to
+                   False, so the response is text-only and works everywhere.
     """
     img_b64 = encode_image(image_path)
     mask_b64 = encode_image(mask_path)
@@ -215,7 +242,10 @@ async def inpaint(
 
     out = _resolve_path(save_path)
     decode_and_save(images[0], str(out))
-    return f"Inpainting complete. Saved to '{out}'."
+    summary = f"Inpainting complete. Saved to '{out}'."
+    if return_image:
+        return [summary, Image(path=str(out)).to_image_content()]
+    return summary
 
 
 @mcp.tool()
@@ -224,7 +254,8 @@ async def upscale_image(
     upscaling_resize: float = 2.0,
     upscaler: str = "R-ESRGAN 4x+",
     save_path: str = "output_upscaled.png",
-) -> str:
+    return_image: bool = False,
+) -> str | list[str | mcp_types.ImageContent]:
     """
     Upscale an image using a super-resolution model available in Forge.
 
@@ -238,6 +269,10 @@ async def upscale_image(
                   'R-ESRGAN 4x+', 'R-ESRGAN 4x+ Anime6B',
                   'Lanczos', 'Nearest', 'LDSR', '4x-UltraSharp'.
         save_path: Filename for the output PNG. Relative paths land in OUTPUT_DIR.
+        return_image: When True, also embed the result image in the tool response
+                   as an MCP image content block. Only works with clients that
+                   render images (e.g. LM Studio, Claude Desktop). Defaults to
+                   False, so the response is text-only and works everywhere.
     """
     b64 = encode_image(image_path)
 
@@ -260,7 +295,10 @@ async def upscale_image(
 
     out = _resolve_path(save_path)
     decode_and_save(img_b64, str(out))
-    return f"Upscaled {upscaling_resize}x using '{upscaler}'. Saved to '{out}'."
+    summary = f"Upscaled {upscaling_resize}x using '{upscaler}'. Saved to '{out}'."
+    if return_image:
+        return [summary, Image(path=str(out)).to_image_content()]
+    return summary
 
 
 # ---------------------------------------------------------------------------
