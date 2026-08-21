@@ -91,16 +91,58 @@ async def get_vaes() -> str:
 
     The VAE affects colour accuracy and fine detail. 'Automatic' uses the one
     baked into the checkpoint; swap it if colours look washed out or over-saturated.
+    Tries /sdapi/v1/sd-vae first, falling back to /sdapi/v1/sd-modules.
     """
+    vaes = await _fetch_vae_list()
+    if isinstance(vaes, str):
+        return vaes
+
+    names = [v["model_name"] for v in vaes]
+    return "Available VAEs:\n  " + "\n  ".join(names)
+
+
+async def _fetch_vae_list() -> list[dict] | str:
+    """Fetch the VAE model list, falling back to sd-modules if sd-vae is missing."""
     async with forge_client(TIMEOUT_INFO) as client:
         response = await client.get("/sdapi/v1/sd-vae")
+
+    if response.status_code == 200:
+        vaes = response.json()
+        return [v for v in vaes if v.get("model_name")]
+
+    async with forge_client(TIMEOUT_INFO) as client:
+        fallback = await client.get("/sdapi/v1/sd-modules")
+
+    if fallback.status_code != 200:
+        return format_error(fallback)
+
+    modules = fallback.json()
+    vaes = [
+        m for m in modules
+        if m.get("model_name") and "\\VAE\\" in m.get("filename", "")
+    ]
+    if not vaes:
+        return "No VAEs found."
+    return vaes
+
+
+@mcp.tool()
+async def get_current_vae() -> str:
+    """
+    Return the VAE currently active in Forge.
+
+    Reads /sdapi/v1/options. When forge_additional_modules is non-empty, returns
+    that key and value; otherwise returns the sd_vae key and value.
+    """
+    async with forge_client(TIMEOUT_INFO) as client:
+        response = await client.get("/sdapi/v1/options")
 
     if response.status_code != 200:
         return format_error(response)
 
-    vaes = response.json()
-    if not vaes:
-        return "No VAEs found."
+    opts = response.json()
+    modules = opts.get("forge_additional_modules", [])
+    if modules:
+        return "forge_additional_modules:\n  " + "\n  ".join(modules)
 
-    names = [v["model_name"] for v in vaes]
-    return "Available VAEs:\n  " + "\n  ".join(names)
+    return f"sd_vae: {opts.get('sd_vae', 'unknown')}"
