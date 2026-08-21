@@ -30,6 +30,7 @@ async def set_model(model_title: str) -> str:
     """
     Switch the active Stable Diffusion checkpoint in Forge.
 
+    Unless you have a specific need or requirement, DO NOT call this tool.
     Use get_models() first to see the exact title string to pass here.
     Model switching can take 10-60 seconds depending on model size.
 

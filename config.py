@@ -61,6 +61,26 @@ LOG_DIR.mkdir(parents=True, exist_ok=True)
 # Maximum number of entries kept in the request logbook.
 LOG_MAX_ENTRIES: int = int(os.getenv("LOG_MAX_ENTRIES", "100"))
 
+# When enabled, generated images are saved to auto-generated timestamped
+# paths instead of overwriting the same file. Path format:
+#   <OUTPUT_DIR>/<year>/<YYYY-MM-DD>/<YYYYMMDD_HHMMSS>_<ms3>_<counter5>.png
+AUTO_SAVE: bool = os.getenv("AUTO_SAVE", "").strip().lower() in ("1", "true", "yes", "on")
+
+# Configurable default values for generation parameters (env-overridable).
+DEFAULT_WIDTH: int = int(os.getenv("DEFAULT_WIDTH", "512"))
+DEFAULT_HEIGHT: int = int(os.getenv("DEFAULT_HEIGHT", "512"))
+DEFAULT_SEED: int = int(os.getenv("DEFAULT_SEED", "-1"))
+DEFAULT_BATCH_SIZE: int = int(os.getenv("DEFAULT_BATCH_SIZE", "1"))
+
+# Defaults that are "not specified" unless set via env. Empty string means the
+# parameter is left unset and Forge (or the tool) chooses its own default.
+DEFAULT_SAMPLER: str = os.getenv("DEFAULT_SAMPLER", "")
+DEFAULT_SAVE_PATH: str = os.getenv("DEFAULT_SAVE_PATH", "")
+
+# Default negative prompt. Applied when a tool call passes
+# use_default_negative_prompt="1"/"true"/"yes"/"on" and no explicit negative_prompt.
+DEFAULT_NEGATIVE_PROMPT: str = os.getenv("DEFAULT_NEGATIVE_PROMPT", "")
+
 # ---------------------------------------------------------------------------
 # Timeouts (seconds)
 # ---------------------------------------------------------------------------

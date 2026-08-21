@@ -1,9 +1,21 @@
 import json
+from datetime import datetime
 from pathlib import Path
 
 import mcp.types as mcp_types
 
-from config import OUTPUT_DIR, TIMEOUT_GENERATION
+from config import (
+    AUTO_SAVE,
+    DEFAULT_BATCH_SIZE,
+    DEFAULT_HEIGHT,
+    DEFAULT_NEGATIVE_PROMPT,
+    DEFAULT_SAMPLER,
+    DEFAULT_SAVE_PATH,
+    DEFAULT_SEED,
+    DEFAULT_WIDTH,
+    OUTPUT_DIR,
+    TIMEOUT_GENERATION,
+)
 from fastmcp.utilities.types import Image
 from logbook import finish_request, start_request
 from mcp_instance import mcp
@@ -13,28 +25,37 @@ from utils import decode_and_save, encode_image, forge_client, format_error
 @mcp.tool()
 async def txt2img(
     prompt: str,
-    negative_prompt: str = "",
-    steps: int = 20,
-    cfg_scale: float = 7.0,
-    width: int = 1024,
-    height: int = 1024,
-    sampler_name: str = "Euler a",
-    seed: int = -1,
-    batch_size: int = 1,
-    save_path: str = "output.png",
+    negative_prompt: str | None = None,
+    use_default_negative_prompt: str | bool = "",
+    steps: int = 9,
+    cfg_scale: float = 1.0,
+    width: int = DEFAULT_WIDTH,
+    height: int = DEFAULT_HEIGHT,
+    sampler_name: str | None = None,
+    seed: int = DEFAULT_SEED,
+    batch_size: int = DEFAULT_BATCH_SIZE,
+    save_path: str | None = None,
     return_image: bool = False,
 ) -> str | list[str | mcp_types.ImageContent]:
     """
     Generate one or more images from a text prompt using Stable Diffusion Forge.
 
+    Unless you have a specific need, call this tool with only the `prompt`
+    argument and leave every other parameter unset so the configured defaults
+    (or Forge's own defaults) apply.
+
     Each image in the batch is saved as <save_path>, <save_path>_1.png, etc.
     Use seed=-1 for a random seed. Returns the seed(s) that were used so the
     result can be reproduced later. Images are saved inside the configured
-    OUTPUT_DIR unless save_path is an absolute path.
+    OUTPUT_DIR unless save_path is an absolute path. When AUTO_SAVE is enabled,
+    save_path is ignored and timestamped auto paths are used instead.
 
     Args:
         prompt: Positive prompt describing the desired image.
-        negative_prompt: Things to avoid in the image.
+        negative_prompt: Things to avoid in the image. When not provided and
+                   use_default_negative_prompt is truthy, DEFAULT_NEGATIVE_PROMPT is used.
+        use_default_negative_prompt: When '1'/'true'/'yes'/'on', apply
+                   DEFAULT_NEGATIVE_PROMPT if negative_prompt is not specified.
         steps: Number of diffusion steps (higher = more detail, slower).
         cfg_scale: Classifier-free guidance scale. Higher = more prompt-adherent.
         width: Image width in pixels.
@@ -52,6 +73,9 @@ async def txt2img(
     """
     entry_id = start_request("txt2img", _params(locals(), "return_image"))
 
+    sampler_name = _resolve_sampler(sampler_name)
+    negative_prompt = _resolve_negative_prompt(negative_prompt, use_default_negative_prompt)
+
     payload = {
         "prompt": prompt,
         "negative_prompt": negative_prompt,
@@ -59,10 +83,11 @@ async def txt2img(
         "cfg_scale": cfg_scale,
         "width": width,
         "height": height,
-        "sampler_name": sampler_name,
         "seed": seed,
         "batch_size": batch_size,
     }
+    if sampler_name:
+        payload["sampler_name"] = sampler_name
 
     async with forge_client(TIMEOUT_GENERATION) as client:
         response = await client.post("/sdapi/v1/txt2img", json=payload)
@@ -76,10 +101,11 @@ async def txt2img(
     info = data.get("info", {})
     seeds = info.get("all_seeds", [seed] * len(images)) if isinstance(info, dict) else [seed]
 
-    base = _resolve_path(save_path)
+    paths = _output_paths(save_path, len(images))
     saved = []
     for i, img_b64 in enumerate(images):
-        out = base if i == 0 else base.with_stem(f"{base.stem}_{i}")
+        out = paths[i]
+        out.parent.mkdir(parents=True, exist_ok=True)
         decode_and_save(img_b64, str(out))
         saved.append(str(out))
 
@@ -101,19 +127,24 @@ async def txt2img(
 async def img2img(
     image_path: str,
     prompt: str,
-    negative_prompt: str = "",
+    negative_prompt: str | None = None,
+    use_default_negative_prompt: str | bool = "",
     denoising_strength: float = 0.6,
     steps: int = 20,
     cfg_scale: float = 7.0,
     width: int = 0,
     height: int = 0,
-    sampler_name: str = "Euler a",
-    seed: int = -1,
-    save_path: str = "output_img2img.png",
+    sampler_name: str | None = None,
+    seed: int = DEFAULT_SEED,
+    save_path: str | None = None,
     return_image: bool = False,
 ) -> str | list[str | mcp_types.ImageContent]:
     """
     Transform an existing image guided by a text prompt (image-to-image).
+
+    Unless you have a specific need, pass only the `image_path` and `prompt`
+    arguments and leave every other parameter unset so the configured defaults
+    (or Forge's own defaults) apply.
 
     Useful for restyling character art, adding details to maps, converting
     sketches to finished illustrations, or applying a new art style.
@@ -121,7 +152,10 @@ async def img2img(
     Args:
         image_path: Path to the source image file (PNG/JPG).
         prompt: Positive prompt describing the desired result.
-        negative_prompt: Things to avoid in the output.
+        negative_prompt: Things to avoid in the output. When not provided and
+                   use_default_negative_prompt is truthy, DEFAULT_NEGATIVE_PROMPT is used.
+        use_default_negative_prompt: When '1'/'true'/'yes'/'on', apply
+                   DEFAULT_NEGATIVE_PROMPT if negative_prompt is not specified.
         denoising_strength: How much to change the image. 0 = no change,
                             1 = ignore original. 0.4-0.7 is a good range.
         steps: Diffusion steps.
@@ -139,6 +173,8 @@ async def img2img(
     entry_id = start_request("img2img", _params(locals(), "return_image", "image_path"))
 
     b64 = encode_image(image_path)
+    sampler_name = _resolve_sampler(sampler_name)
+    negative_prompt = _resolve_negative_prompt(negative_prompt, use_default_negative_prompt)
 
     payload = {
         "init_images": [b64],
@@ -147,9 +183,10 @@ async def img2img(
         "denoising_strength": denoising_strength,
         "steps": steps,
         "cfg_scale": cfg_scale,
-        "sampler_name": sampler_name,
         "seed": seed,
     }
+    if sampler_name:
+        payload["sampler_name"] = sampler_name
     if width:
         payload["width"] = width
     if height:
@@ -171,7 +208,8 @@ async def img2img(
         finish_request(entry_id, "error")
         return "No images returned by Forge."
 
-    out = _resolve_path(save_path)
+    out = _output_paths(save_path, 1)[0]
+    out.parent.mkdir(parents=True, exist_ok=True)
     decode_and_save(images[0], str(out))
     summary = f"img2img complete. Saved to '{out}'. Seed: {used_seed}"
     finish_request(entry_id, "success", [str(out)])
@@ -185,19 +223,24 @@ async def inpaint(
     image_path: str,
     mask_path: str,
     prompt: str,
-    negative_prompt: str = "",
+    negative_prompt: str | None = None,
+    use_default_negative_prompt: str | bool = "",
     denoising_strength: float = 0.75,
     steps: int = 20,
     cfg_scale: float = 7.0,
-    sampler_name: str = "Euler a",
+    sampler_name: str | None = None,
     mask_blur: int = 4,
     inpainting_fill: int = 1,
-    seed: int = -1,
-    save_path: str = "output_inpaint.png",
+    seed: int = DEFAULT_SEED,
+    save_path: str | None = None,
     return_image: bool = False,
 ) -> str | list[str | mcp_types.ImageContent]:
     """
     Inpaint (fill or redraw) a masked region of an existing image.
+
+    Unless you have a specific need, pass only the `image_path`, `mask_path`
+    and `prompt` arguments and leave every other parameter unset so the
+    configured defaults (or Forge's own defaults) apply.
 
     Paint the area to be replaced pure white in the mask image; the rest
     should be pure black. Great for fixing anatomy, swapping costume pieces,
@@ -207,7 +250,10 @@ async def inpaint(
         image_path: Path to the source image.
         mask_path: Path to the mask image (white = repaint, black = keep).
         prompt: What to paint in the masked area.
-        negative_prompt: Things to avoid.
+        negative_prompt: Things to avoid. When not provided and
+                   use_default_negative_prompt is truthy, DEFAULT_NEGATIVE_PROMPT is used.
+        use_default_negative_prompt: When '1'/'true'/'yes'/'on', apply
+                   DEFAULT_NEGATIVE_PROMPT if negative_prompt is not specified.
         denoising_strength: Strength of inpainting (0.5-0.85 recommended).
         steps: Diffusion steps.
         cfg_scale: Prompt adherence strength.
@@ -226,6 +272,8 @@ async def inpaint(
 
     img_b64 = encode_image(image_path)
     mask_b64 = encode_image(mask_path)
+    sampler_name = _resolve_sampler(sampler_name)
+    negative_prompt = _resolve_negative_prompt(negative_prompt, use_default_negative_prompt)
 
     payload = {
         "init_images": [img_b64],
@@ -235,12 +283,13 @@ async def inpaint(
         "denoising_strength": denoising_strength,
         "steps": steps,
         "cfg_scale": cfg_scale,
-        "sampler_name": sampler_name,
         "mask_blur": mask_blur,
         "inpainting_fill": inpainting_fill,
         "inpaint_full_res": True,
         "seed": seed,
     }
+    if sampler_name:
+        payload["sampler_name"] = sampler_name
 
     async with forge_client(TIMEOUT_GENERATION) as client:
         response = await client.post("/sdapi/v1/img2img", json=payload)
@@ -256,7 +305,8 @@ async def inpaint(
         finish_request(entry_id, "error")
         return "No images returned by Forge."
 
-    out = _resolve_path(save_path)
+    out = _output_paths(save_path, 1)[0]
+    out.parent.mkdir(parents=True, exist_ok=True)
     decode_and_save(images[0], str(out))
     summary = f"Inpainting complete. Saved to '{out}'."
     finish_request(entry_id, "success", [str(out)])
@@ -270,11 +320,14 @@ async def upscale_image(
     image_path: str,
     upscaling_resize: float = 2.0,
     upscaler: str = "R-ESRGAN 4x+",
-    save_path: str = "output_upscaled.png",
+    save_path: str | None = None,
     return_image: bool = False,
 ) -> str | list[str | mcp_types.ImageContent]:
     """
     Upscale an image using a super-resolution model available in Forge.
+
+    Unless you have a specific need, pass only the `image_path` argument and
+    leave every other parameter unset so the configured defaults apply.
 
     Ideal for taking a draft character portrait or map tile and making it
     print-ready without re-generating from scratch.
@@ -314,7 +367,8 @@ async def upscale_image(
         finish_request(entry_id, "error")
         return "Forge returned no image data."
 
-    out = _resolve_path(save_path)
+    out = _output_paths(save_path, 1)[0]
+    out.parent.mkdir(parents=True, exist_ok=True)
     decode_and_save(img_b64, str(out))
     summary = f"Upscaled {upscaling_resize}x using '{upscaler}'. Saved to '{out}'."
     finish_request(entry_id, "success", [str(out)])
@@ -326,6 +380,74 @@ async def upscale_image(
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
+def _resolve_sampler(sampler_name: str | None) -> str:
+    """Return the effective sampler, falling back to DEFAULT_SAMPLER (may be empty)."""
+    return sampler_name if sampler_name else DEFAULT_SAMPLER
+
+
+def _is_truthy(value: str | bool | None) -> bool:
+    """Return True when value is a truthy string ('1'/'true'/'yes'/'on') or boolean True."""
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    return str(value).strip().lower() in ("1", "true", "yes", "on")
+
+
+def _resolve_negative_prompt(negative_prompt: str | None, enabled: str | bool | None) -> str:
+    """
+    Return the effective negative prompt.
+
+    Uses the provided value when given. Otherwise, when *enabled* is truthy
+    ('1'/'true'/'yes'/'on'), applies DEFAULT_NEGATIVE_PROMPT; else returns "".
+    """
+    if negative_prompt is not None:
+        return negative_prompt
+    if _is_truthy(enabled):
+        return DEFAULT_NEGATIVE_PROMPT
+    return ""
+
+
+def _resolve_save_path(save_path: str | None) -> str:
+    """Return the effective save path, falling back to DEFAULT_SAVE_PATH."""
+    path = save_path if save_path else DEFAULT_SAVE_PATH
+    # If still unspecified (not auto-saving), fall back to a fixed filename.
+    return path if path else "output.png"
+
+
+def _auto_output_paths(count: int) -> list[Path]:
+    """
+    Build timestamped, counter-based output paths under OUTPUT_DIR.
+
+    Format: <OUTPUT_DIR>/<year>/<YYYY-MM-DD>/<YYYYMMDD_HHMMSS>_<ms3>_<counter5>.png
+    where <ms3> is the millisecond part of the request time (0.xxx -> 3 digits)
+    and <counter5> is the 0-padded index of each image within the request.
+    """
+    now = datetime.now()
+    stamp = now.strftime("%Y%m%d_%H%M%S")
+    ms = f"{now.microsecond // 1000:03d}"
+    directory = OUTPUT_DIR / str(now.year) / now.strftime("%Y-%m-%d")
+    return [
+        directory / f"{stamp}_{ms}_{i + 1:05d}.png"
+        for i in range(count)
+    ]
+
+
+def _output_paths(save_path: str | None, count: int) -> list[Path]:
+    """
+    Decide where the generated images should be saved.
+
+    If AUTO_SAVE is enabled, save_path is ignored and timestamped auto paths
+    are returned. Otherwise the provided save_path (or DEFAULT_SAVE_PATH) is
+    used, generating <name>_<i>.png suffixes for multi-image batches.
+    """
+    if AUTO_SAVE:
+        return _auto_output_paths(count)
+
+    base = _resolve_path(_resolve_save_path(save_path))
+    return [base if i == 0 else base.with_stem(f"{base.stem}_{i}") for i in range(count)]
+
 
 def _resolve_path(save_path: str) -> Path:
     """Return an absolute Path, placing relative paths inside OUTPUT_DIR."""
