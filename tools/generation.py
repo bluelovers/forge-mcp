@@ -28,6 +28,7 @@ from config import (
     OUTPUT_DIR,
     TIMEOUT_GENERATION,
     UPSCALE_RESIZE,
+    UPSCALER,
 )
 from fastmcp.utilities.types import Image
 from logbook import finish_request, start_request
@@ -443,7 +444,7 @@ async def upscale_image(
     image_path: str,
     acknowledge_custom_parameters: str | bool = "",
     upscaling_resize: float = UPSCALE_RESIZE,
-    upscaler: str = "R-ESRGAN 4x+",
+    upscaler: str = UPSCALER,
     save_path: str | None = None,
     return_image: bool = False,
 ) -> str | list[str | mcp_types.ImageContent]:
@@ -476,7 +477,7 @@ async def upscale_image(
     """
     had_custom = (
         upscaling_resize != UPSCALE_RESIZE
-        or upscaler != "R-ESRGAN 4x+"
+        or upscaler != UPSCALER
     )
     acknowledged = is_truthy(acknowledge_custom_parameters)
     # Guardrail intent: without an acknowledged truthy value, any
@@ -485,7 +486,7 @@ async def upscale_image(
     # predictable unless the user explicitly requested specific values.
     if not is_truthy(acknowledge_custom_parameters):
         upscaling_resize = UPSCALE_RESIZE
-        upscaler = "R-ESRGAN 4x+"
+        upscaler = UPSCALER
 
     entry_id = start_request("upscale_image", _params(locals(), "return_image", "image_path"))
 

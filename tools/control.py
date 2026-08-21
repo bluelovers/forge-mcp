@@ -30,6 +30,7 @@ from config import (
     TIMEOUT_INFO,
     TIMEOUT_MODEL_SWITCH,
     UPSCALE_RESIZE,
+    UPSCALER,
 )
 import fastmcp
 import json
@@ -91,6 +92,7 @@ async def info() -> str:
         },
         "UPSCALE": {
             "UPSCALE_RESIZE": UPSCALE_RESIZE,
+            "UPSCALER": UPSCALER,
         },
         "TIMEOUTS_SECONDS": {
             "TIMEOUT_GENERATION": TIMEOUT_GENERATION,

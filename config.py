@@ -101,8 +101,9 @@ INPAINT_DENOISING_STRENGTH: float = float(os.getenv("INPAINT_DENOISING_STRENGTH"
 INPAINT_MASK_BLUR: int = int(os.getenv("INPAINT_MASK_BLUR", "4"))
 INPAINT_FILL: int = int(os.getenv("INPAINT_FILL", "1"))
 
-# Upscaling default multiplier.
+# Upscaling defaults (multiplier and upscaler model).
 UPSCALE_RESIZE: float = float(os.getenv("UPSCALE_RESIZE", "2.0"))
+UPSCALER: str = os.getenv("UPSCALER", "R-ESRGAN 4x+")
 
 # ---------------------------------------------------------------------------
 # Timeouts (seconds)

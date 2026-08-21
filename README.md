@@ -82,6 +82,7 @@ copy .env.example .env
 | `INPAINT_MASK_BLUR` | `4` | inpaint mask blur radius |
 | `INPAINT_FILL` | `1` | inpaint fill mode (`0`=fill, `1`=original, `2`=latent noise, `3`=latent nothing) |
 | `UPSCALE_RESIZE` | `2.0` | default upscale multiplier |
+| `UPSCALER` | `R-ESRGAN 4x+` | default upscaler model |
 | `LOG_DIR` | `$OUTPUT_DIR` | Directory for the request logbook |
 | `LOG_MAX_ENTRIES` | `100` | Max logbook entries kept |
 | `TIMEOUT_GENERATION` | `300` | Seconds to wait for txt2img/img2img/inpaint/upscale |
