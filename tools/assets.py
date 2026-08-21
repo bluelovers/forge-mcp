@@ -10,6 +10,9 @@ async def get_loras() -> str:
 
     LoRAs are lightweight style/character adapters you can activate in your
     prompt with the syntax <lora:name:weight> (e.g. <lora:character_elf:0.8>).
+
+    Unless the user explicitly asked which LoRAs are available, there is no
+    need to call this tool.
     """
     async with forge_client(TIMEOUT_INFO) as client:
         response = await client.get("/sdapi/v1/loras")
@@ -22,7 +25,12 @@ async def get_loras() -> str:
         return "No LoRAs found."
 
     lines = [f"  {l['name']}" for l in loras]
-    return f"Available LoRAs ({len(loras)}):\n" + "\n".join(lines)
+    return (
+        f"Available LoRAs ({len(loras)}):\n"
+        + "\n".join(lines)
+        + "\n\n⚠️ This is informational only — you generally don't need to call "
+        "this tool unless the user explicitly asked which LoRAs are available."
+    )
 
 
 @mcp.tool()
@@ -32,6 +40,9 @@ async def get_samplers() -> str:
 
     The sampler controls how diffusion steps are performed. Different samplers
     trade speed vs quality. Recommended starters: 'Euler a', 'DPM++ 2M Karras'.
+
+    Unless the user explicitly asked which samplers are available, there is
+    no need to call this tool.
     """
     async with forge_client(TIMEOUT_INFO) as client:
         response = await client.get("/sdapi/v1/samplers")
@@ -41,7 +52,12 @@ async def get_samplers() -> str:
 
     samplers = response.json()
     names = [s["name"] for s in samplers]
-    return "Available samplers:\n  " + "\n  ".join(names)
+    return (
+        "Available samplers:\n  "
+        + "\n  ".join(names)
+        + "\n\n⚠️ This is informational only — you generally don't need to call "
+        "this tool unless the user explicitly asked which samplers are available."
+    )
 
 
 @mcp.tool()

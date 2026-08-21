@@ -8,8 +8,13 @@ async def get_models() -> str:
     """
     List all Stable Diffusion checkpoints (models) available in Forge.
 
-    Returns the model title and filename for each checkpoint so you can
-    pick the right one for your art style before generating.
+    Returns the model title and filename for each checkpoint.
+
+    Unless the user explicitly asked which models are available, there is no
+    need to call this tool. This tool only LISTS checkpoints — do NOT call
+    set_model() unless the user explicitly instructed a checkpoint switch.
+    Never assume that a particular model suits the prompt, and never switch
+    the checkpoint on your own initiative.
     """
     async with forge_client(TIMEOUT_INFO) as client:
         response = await client.get("/sdapi/v1/sd-models")
@@ -22,7 +27,13 @@ async def get_models() -> str:
         return "No models found."
 
     lines = [f"  [{i+1}] {m['title']}  ({m['filename']})" for i, m in enumerate(models)]
-    return "Available models:\n" + "\n".join(lines)
+    return (
+        "Available models:\n"
+        + "\n".join(lines)
+        + "\n\n⚠️ WARNING: this only LISTS checkpoints. Do NOT call set_model() "
+        "unless the user explicitly instructed a checkpoint switch, and never "
+        "assume that a particular model suits the prompt."
+    )
 
 
 @mcp.tool()
@@ -34,26 +45,25 @@ async def set_model(
     Switch the active Stable Diffusion checkpoint in Forge.
 
     ⚠️ WARNING: Switching models arbitrarily can leave the active checkpoint
-    in an unusable state and prevent image generation from succeeding. Only
-    call this tool when a model switch is genuinely necessary — for example
-    when the user explicitly asked for a specific checkpoint.
+    in an unusable state and prevent image generation from succeeding. Never
+    assume that a particular model fits the prompt, and never switch the
+    checkpoint on your own initiative. Only call this tool when the user
+    explicitly instructed the switch to a specific checkpoint.
 
-    Model switching can take 10-60 seconds depending on model size, so the
-    caller must pass a truthy value to acknowledge the switch is required.
+    Model switching can take 10-60 seconds depending on model size.
 
     Args:
         model_title: The exact title of the model as returned by get_models().
-        acknowledge_required_switch: A truthy value ('1'/'true'/'yes'/'on')
-                   confirming the model switch is truly required. The tool
-                   refuses to switch unless this is set.
+        acknowledge_required_switch: Only set when the user explicitly
+                   instructed the checkpoint switch. Do not set it on your own
+                   initiative — the tool refuses to switch unless this is set.
     """
     if not is_truthy(acknowledge_required_switch):
         return (
-            "Refusing to switch models: arbitrarily switching the active "
-            "checkpoint can prevent image generation from working. set_model "
-            "should only be called when a model switch is genuinely necessary. "
-            "Pass acknowledge_required_switch='1' (or 'true'/'yes'/'on') to "
-            "confirm the switch is required."
+            "set_model was not called. acknowledge_required_switch was not set, "
+            "so the checkpoint was left unchanged. Only switch the checkpoint "
+            "when the user explicitly instructed it — never switch it on your "
+            "own initiative."
         )
 
     payload = {"sd_model_checkpoint": model_title}
@@ -64,13 +74,23 @@ async def set_model(
     if response.status_code != 200:
         return format_error(response)
 
-    return f"Model switched to '{model_title}'. Give Forge a moment to load it before generating."
+    return (
+        f"Model switched to '{model_title}'. Give Forge a moment to load it before generating.\n\n"
+        "⚠️ WARNING: arbitrarily switching checkpoints can leave the active "
+        "model in an unusable state and prevent image generation from "
+        "succeeding. Only switch again if the user explicitly instructs it."
+    )
 
 
 @mcp.tool()
 async def get_current_model() -> str:
     """
     Return the name of the checkpoint that is currently loaded in Forge.
+
+    Unless the user asked which model is currently active, there is no need
+    to call this tool. This tool only REPORTS the active checkpoint — do NOT
+    call set_model() unless the user explicitly instructed a checkpoint
+    switch. Never switch the checkpoint on your own initiative.
     """
     async with forge_client(TIMEOUT_INFO) as client:
         response = await client.get("/sdapi/v1/options")
@@ -79,7 +99,11 @@ async def get_current_model() -> str:
         return format_error(response)
 
     opts = response.json()
-    return f"Current model: {opts.get('sd_model_checkpoint', 'unknown')}"
+    return (
+        f"Current model: {opts.get('sd_model_checkpoint', 'unknown')}\n\n"
+        "⚠️ WARNING: this only REPORTS the active checkpoint. Do NOT call "
+        "set_model() unless the user explicitly instructed a checkpoint switch."
+    )
 
 
 @mcp.tool()

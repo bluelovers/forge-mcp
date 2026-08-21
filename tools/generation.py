@@ -69,10 +69,9 @@ async def txt2img(
 
     Args:
         prompt: Positive prompt describing the desired image.
-        acknowledge_custom_parameters: A truthy value ('1'/'true'/'yes'/'on') confirming
-                   you acknowledge the warning above and want the custom values
-                   below. When not set, all non-essential parameters are
-                   ignored and the configured defaults are used.
+        acknowledge_custom_parameters: Only set when the user explicitly requested
+                   specific generation values. Do not set it on your own
+                   initiative — leave it unset unless clearly instructed.
         negative_prompt: Things to avoid in the image. When not provided and
                    use_default_negative_prompt is truthy, DEFAULT_NEGATIVE_PROMPT is used.
         use_default_negative_prompt: When '1'/'true'/'yes'/'on', apply
@@ -92,6 +91,17 @@ async def txt2img(
                    other clients receive them as opaque blocks. Defaults to
                    False, so the response is text-only and works everywhere.
     """
+    had_custom = any((
+        negative_prompt is not None,
+        steps != DEFAULT_STEPS,
+        cfg_scale != DEFAULT_CFG_SCALE,
+        width != DEFAULT_WIDTH,
+        height != DEFAULT_HEIGHT,
+        sampler_name is not None,
+        seed != DEFAULT_SEED,
+        batch_size != DEFAULT_BATCH_SIZE,
+    ))
+    acknowledged = is_truthy(acknowledge_custom_parameters)
     if not is_truthy(acknowledge_custom_parameters):
         negative_prompt = None
         steps = DEFAULT_STEPS
@@ -145,6 +155,10 @@ async def txt2img(
         f"Saved to: {', '.join(saved)}\n"
         f"Seeds used: {seeds}"
     )
+    if acknowledged and had_custom:
+        summary += _ACKED_CUSTOM_WARNING
+    elif had_custom:
+        summary += _IGNORED_PARAMS_NOTE
 
     finish_request(entry_id, "success", saved)
 
@@ -188,10 +202,9 @@ async def img2img(
     Args:
         image_path: Path to the source image file (PNG/JPG).
         prompt: Positive prompt describing the desired result.
-        acknowledge_custom_parameters: A truthy value ('1'/'true'/'yes'/'on') confirming
-                   you acknowledge the warning above and want the custom values
-                   below. When not set, all non-essential parameters are
-                   ignored and the configured defaults are used.
+        acknowledge_custom_parameters: Only set when the user explicitly requested
+                   specific generation values. Do not set it on your own
+                   initiative — leave it unset unless clearly instructed.
         negative_prompt: Things to avoid in the output. When not provided and
                    use_default_negative_prompt is truthy, DEFAULT_NEGATIVE_PROMPT is used.
         use_default_negative_prompt: When '1'/'true'/'yes'/'on', apply
@@ -210,6 +223,17 @@ async def img2img(
                    render images (e.g. LM Studio, Claude Desktop). Defaults to
                    False, so the response is text-only and works everywhere.
     """
+    had_custom = any((
+        negative_prompt is not None,
+        denoising_strength != IMG2IMG_DENOISING_STRENGTH,
+        steps != IMG2IMG_STEPS,
+        cfg_scale != IMG2IMG_CFG_SCALE,
+        width != 0,
+        height != 0,
+        sampler_name is not None,
+        seed != DEFAULT_SEED,
+    ))
+    acknowledged = is_truthy(acknowledge_custom_parameters)
     if not is_truthy(acknowledge_custom_parameters):
         negative_prompt = None
         denoising_strength = IMG2IMG_DENOISING_STRENGTH
@@ -262,6 +286,10 @@ async def img2img(
     out.parent.mkdir(parents=True, exist_ok=True)
     decode_and_save(images[0], str(out))
     summary = f"img2img complete. Saved to '{out}'. Seed: {used_seed}"
+    if acknowledged and had_custom:
+        summary += _ACKED_CUSTOM_WARNING
+    elif had_custom:
+        summary += _IGNORED_PARAMS_NOTE
     finish_request(entry_id, "success", [str(out)])
     if return_image:
         return [summary, Image(path=str(out)).to_image_content()]
@@ -305,10 +333,9 @@ async def inpaint(
         image_path: Path to the source image.
         mask_path: Path to the mask image (white = repaint, black = keep).
         prompt: What to paint in the masked area.
-        acknowledge_custom_parameters: A truthy value ('1'/'true'/'yes'/'on') confirming
-                   you acknowledge the warning above and want the custom values
-                   below. When not set, all non-essential parameters are
-                   ignored and the configured defaults are used.
+        acknowledge_custom_parameters: Only set when the user explicitly requested
+                   specific generation values. Do not set it on your own
+                   initiative — leave it unset unless clearly instructed.
         negative_prompt: Things to avoid. When not provided and
                    use_default_negative_prompt is truthy, DEFAULT_NEGATIVE_PROMPT is used.
         use_default_negative_prompt: When '1'/'true'/'yes'/'on', apply
@@ -327,6 +354,17 @@ async def inpaint(
                    render images (e.g. LM Studio, Claude Desktop). Defaults to
                    False, so the response is text-only and works everywhere.
     """
+    had_custom = any((
+        negative_prompt is not None,
+        denoising_strength != INPAINT_DENOISING_STRENGTH,
+        steps != INPAINT_STEPS,
+        cfg_scale != INPAINT_CFG_SCALE,
+        sampler_name is not None,
+        mask_blur != INPAINT_MASK_BLUR,
+        inpainting_fill != INPAINT_FILL,
+        seed != DEFAULT_SEED,
+    ))
+    acknowledged = is_truthy(acknowledge_custom_parameters)
     if not is_truthy(acknowledge_custom_parameters):
         negative_prompt = None
         denoising_strength = INPAINT_DENOISING_STRENGTH
@@ -378,6 +416,10 @@ async def inpaint(
     out.parent.mkdir(parents=True, exist_ok=True)
     decode_and_save(images[0], str(out))
     summary = f"Inpainting complete. Saved to '{out}'."
+    if acknowledged and had_custom:
+        summary += _ACKED_CUSTOM_WARNING
+    elif had_custom:
+        summary += _IGNORED_PARAMS_NOTE
     finish_request(entry_id, "success", [str(out)])
     if return_image:
         return [summary, Image(path=str(out)).to_image_content()]
@@ -407,10 +449,9 @@ async def upscale_image(
 
     Args:
         image_path: Path to the image to upscale.
-        acknowledge_custom_parameters: A truthy value ('1'/'true'/'yes'/'on') confirming
-                   you acknowledge the warning above and want the custom values
-                   below. When not set, all non-essential parameters are
-                   ignored and the configured defaults are used.
+        acknowledge_custom_parameters: Only set when the user explicitly requested
+                   specific generation values. Do not set it on your own
+                   initiative — leave it unset unless clearly instructed.
         upscaling_resize: Multiplier for the output size (e.g. 2.0 = 2x, 4.0 = 4x).
         upscaler: Name of the upscaler model. Common choices:
                   'R-ESRGAN 4x+', 'R-ESRGAN 4x+ Anime6B',
@@ -421,6 +462,11 @@ async def upscale_image(
                    render images (e.g. LM Studio, Claude Desktop). Defaults to
                    False, so the response is text-only and works everywhere.
     """
+    had_custom = (
+        upscaling_resize != UPSCALE_RESIZE
+        or upscaler != "R-ESRGAN 4x+"
+    )
+    acknowledged = is_truthy(acknowledge_custom_parameters)
     if not is_truthy(acknowledge_custom_parameters):
         upscaling_resize = UPSCALE_RESIZE
         upscaler = "R-ESRGAN 4x+"
@@ -452,6 +498,10 @@ async def upscale_image(
     out.parent.mkdir(parents=True, exist_ok=True)
     decode_and_save(img_b64, str(out))
     summary = f"Upscaled {upscaling_resize}x using '{upscaler}'. Saved to '{out}'."
+    if acknowledged and had_custom:
+        summary += _ACKED_CUSTOM_WARNING
+    elif had_custom:
+        summary += _IGNORED_PARAMS_NOTE
     finish_request(entry_id, "success", [str(out)])
     if return_image:
         return [summary, Image(path=str(out)).to_image_content()]
@@ -461,6 +511,24 @@ async def upscale_image(
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
+# Appended when acknowledge_custom_parameters was enabled: custom values were
+# applied, so warn strongly that arbitrary customization is discouraged.
+_ACKED_CUSTOM_WARNING = (
+    "\n\n⚠️ WARNING: acknowledge_custom_parameters was enabled, so the "
+    "non-essential parameters you supplied were applied as-is. Arbitrarily "
+    "customizing generation parameters can produce unexpected results; only "
+    "do this when the user explicitly requested specific values."
+)
+
+# Appended when non-essential parameters were supplied but ignored because
+# acknowledge_custom_parameters was not set. Kept as a mild reminder so agents
+# are NOT led to believe they should supply a truthy value.
+_IGNORED_PARAMS_NOTE = (
+    "\n\nNote: acknowledge_custom_parameters was not set, so the non-essential "
+    "parameters you supplied were ignored and the configured defaults were "
+    "used instead."
+)
 
 def _resolve_sampler(sampler_name: str | None, fallback: str = DEFAULT_SAMPLER) -> str:
     """Return the effective sampler, falling back to *fallback* (may be empty)."""
