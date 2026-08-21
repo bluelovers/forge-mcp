@@ -16,23 +16,29 @@ from config import (
     DEFAULT_STEPS,
     DEFAULT_WIDTH,
     IMG2IMG_CFG_SCALE,
+    IMG2IMG_DENOISING_STRENGTH,
     IMG2IMG_SAMPLER,
     IMG2IMG_STEPS,
     INPAINT_CFG_SCALE,
+    INPAINT_DENOISING_STRENGTH,
+    INPAINT_FILL,
+    INPAINT_MASK_BLUR,
     INPAINT_SAMPLER,
     INPAINT_STEPS,
     OUTPUT_DIR,
     TIMEOUT_GENERATION,
+    UPSCALE_RESIZE,
 )
 from fastmcp.utilities.types import Image
 from logbook import finish_request, start_request
 from mcp_instance import mcp
-from utils import decode_and_save, encode_image, forge_client, format_error
+from utils import decode_and_save, encode_image, forge_client, format_error, is_truthy
 
 
 @mcp.tool()
 async def txt2img(
     prompt: str,
+    acknowledge_custom_parameters: str | bool = "",
     negative_prompt: str | None = None,
     use_default_negative_prompt: str | bool = "",
     steps: int = DEFAULT_STEPS,
@@ -48,9 +54,12 @@ async def txt2img(
     """
     Generate one or more images from a text prompt using Stable Diffusion Forge.
 
-    Unless you have a specific need, call this tool with only the `prompt`
-    argument and leave every other parameter unset so the configured defaults
-    (or Forge's own defaults) apply.
+    ⚠️ WARNING: unless you acknowledge it with `acknowledge_custom_parameters`,
+    every non-essential parameter below (negative prompt, steps, cfg_scale,
+    width, height, sampler, seed, batch_size) is forcibly ignored and the
+    configured defaults are used instead. `use_default_negative_prompt`,
+    `save_path` and `return_image` always remain in effect. Call this tool with
+    only the `prompt` argument unless you genuinely need custom values.
 
     Each image in the batch is saved as <save_path>, <save_path>_1.png, etc.
     Use seed=-1 for a random seed. Returns the seed(s) that were used so the
@@ -60,6 +69,10 @@ async def txt2img(
 
     Args:
         prompt: Positive prompt describing the desired image.
+        acknowledge_custom_parameters: A truthy value ('1'/'true'/'yes'/'on') confirming
+                   you acknowledge the warning above and want the custom values
+                   below. When not set, all non-essential parameters are
+                   ignored and the configured defaults are used.
         negative_prompt: Things to avoid in the image. When not provided and
                    use_default_negative_prompt is truthy, DEFAULT_NEGATIVE_PROMPT is used.
         use_default_negative_prompt: When '1'/'true'/'yes'/'on', apply
@@ -79,6 +92,16 @@ async def txt2img(
                    other clients receive them as opaque blocks. Defaults to
                    False, so the response is text-only and works everywhere.
     """
+    if not is_truthy(acknowledge_custom_parameters):
+        negative_prompt = None
+        steps = DEFAULT_STEPS
+        cfg_scale = DEFAULT_CFG_SCALE
+        width = DEFAULT_WIDTH
+        height = DEFAULT_HEIGHT
+        sampler_name = None
+        seed = DEFAULT_SEED
+        batch_size = DEFAULT_BATCH_SIZE
+
     entry_id = start_request("txt2img", _params(locals(), "return_image"))
 
     sampler_name = _resolve_sampler(sampler_name)
@@ -135,9 +158,10 @@ async def txt2img(
 async def img2img(
     image_path: str,
     prompt: str,
+    acknowledge_custom_parameters: str | bool = "",
     negative_prompt: str | None = None,
     use_default_negative_prompt: str | bool = "",
-    denoising_strength: float = 0.6,
+    denoising_strength: float = IMG2IMG_DENOISING_STRENGTH,
     steps: int = IMG2IMG_STEPS,
     cfg_scale: float = IMG2IMG_CFG_SCALE,
     width: int = 0,
@@ -150,9 +174,13 @@ async def img2img(
     """
     Transform an existing image guided by a text prompt (image-to-image).
 
-    Unless you have a specific need, pass only the `image_path` and `prompt`
-    arguments and leave every other parameter unset so the configured defaults
-    (or Forge's own defaults) apply.
+    ⚠️ WARNING: unless you acknowledge it with `acknowledge_custom_parameters`,
+    every non-essential parameter below (negative prompt, denoising_strength,
+    steps, cfg_scale, width, height, sampler, seed) is forcibly
+    ignored and the configured defaults are used instead.
+    `use_default_negative_prompt`, `save_path` and `return_image` always remain
+    in effect. Call this tool with only the `image_path` and `prompt` arguments
+    unless you genuinely need custom values.
 
     Useful for restyling character art, adding details to maps, converting
     sketches to finished illustrations, or applying a new art style.
@@ -160,6 +188,10 @@ async def img2img(
     Args:
         image_path: Path to the source image file (PNG/JPG).
         prompt: Positive prompt describing the desired result.
+        acknowledge_custom_parameters: A truthy value ('1'/'true'/'yes'/'on') confirming
+                   you acknowledge the warning above and want the custom values
+                   below. When not set, all non-essential parameters are
+                   ignored and the configured defaults are used.
         negative_prompt: Things to avoid in the output. When not provided and
                    use_default_negative_prompt is truthy, DEFAULT_NEGATIVE_PROMPT is used.
         use_default_negative_prompt: When '1'/'true'/'yes'/'on', apply
@@ -178,6 +210,16 @@ async def img2img(
                    render images (e.g. LM Studio, Claude Desktop). Defaults to
                    False, so the response is text-only and works everywhere.
     """
+    if not is_truthy(acknowledge_custom_parameters):
+        negative_prompt = None
+        denoising_strength = IMG2IMG_DENOISING_STRENGTH
+        steps = IMG2IMG_STEPS
+        cfg_scale = IMG2IMG_CFG_SCALE
+        width = 0
+        height = 0
+        sampler_name = None
+        seed = DEFAULT_SEED
+
     entry_id = start_request("img2img", _params(locals(), "return_image", "image_path"))
 
     b64 = encode_image(image_path)
@@ -231,14 +273,15 @@ async def inpaint(
     image_path: str,
     mask_path: str,
     prompt: str,
+    acknowledge_custom_parameters: str | bool = "",
     negative_prompt: str | None = None,
     use_default_negative_prompt: str | bool = "",
-    denoising_strength: float = 0.75,
+    denoising_strength: float = INPAINT_DENOISING_STRENGTH,
     steps: int = INPAINT_STEPS,
     cfg_scale: float = INPAINT_CFG_SCALE,
     sampler_name: str | None = None,
-    mask_blur: int = 4,
-    inpainting_fill: int = 1,
+    mask_blur: int = INPAINT_MASK_BLUR,
+    inpainting_fill: int = INPAINT_FILL,
     seed: int = DEFAULT_SEED,
     save_path: str | None = None,
     return_image: bool = False,
@@ -246,9 +289,13 @@ async def inpaint(
     """
     Inpaint (fill or redraw) a masked region of an existing image.
 
-    Unless you have a specific need, pass only the `image_path`, `mask_path`
-    and `prompt` arguments and leave every other parameter unset so the
-    configured defaults (or Forge's own defaults) apply.
+    ⚠️ WARNING: unless you acknowledge it with `acknowledge_custom_parameters`,
+    every non-essential parameter below (negative prompt, denoising_strength,
+    steps, cfg_scale, sampler, mask_blur, inpainting_fill, seed) is
+    forcibly ignored and the configured defaults are used instead.
+    `use_default_negative_prompt`, `save_path` and `return_image` always remain
+    in effect. Call this tool with only the `image_path`, `mask_path` and
+    `prompt` arguments unless you genuinely need custom values.
 
     Paint the area to be replaced pure white in the mask image; the rest
     should be pure black. Great for fixing anatomy, swapping costume pieces,
@@ -258,6 +305,10 @@ async def inpaint(
         image_path: Path to the source image.
         mask_path: Path to the mask image (white = repaint, black = keep).
         prompt: What to paint in the masked area.
+        acknowledge_custom_parameters: A truthy value ('1'/'true'/'yes'/'on') confirming
+                   you acknowledge the warning above and want the custom values
+                   below. When not set, all non-essential parameters are
+                   ignored and the configured defaults are used.
         negative_prompt: Things to avoid. When not provided and
                    use_default_negative_prompt is truthy, DEFAULT_NEGATIVE_PROMPT is used.
         use_default_negative_prompt: When '1'/'true'/'yes'/'on', apply
@@ -276,6 +327,16 @@ async def inpaint(
                    render images (e.g. LM Studio, Claude Desktop). Defaults to
                    False, so the response is text-only and works everywhere.
     """
+    if not is_truthy(acknowledge_custom_parameters):
+        negative_prompt = None
+        denoising_strength = INPAINT_DENOISING_STRENGTH
+        steps = INPAINT_STEPS
+        cfg_scale = INPAINT_CFG_SCALE
+        sampler_name = None
+        mask_blur = INPAINT_MASK_BLUR
+        inpainting_fill = INPAINT_FILL
+        seed = DEFAULT_SEED
+
     entry_id = start_request("inpaint", _params(locals(), "return_image", "image_path", "mask_path"))
 
     img_b64 = encode_image(image_path)
@@ -326,7 +387,8 @@ async def inpaint(
 @mcp.tool()
 async def upscale_image(
     image_path: str,
-    upscaling_resize: float = 2.0,
+    acknowledge_custom_parameters: str | bool = "",
+    upscaling_resize: float = UPSCALE_RESIZE,
     upscaler: str = "R-ESRGAN 4x+",
     save_path: str | None = None,
     return_image: bool = False,
@@ -334,14 +396,21 @@ async def upscale_image(
     """
     Upscale an image using a super-resolution model available in Forge.
 
-    Unless you have a specific need, pass only the `image_path` argument and
-    leave every other parameter unset so the configured defaults apply.
+    ⚠️ WARNING: unless you acknowledge it with `acknowledge_custom_parameters`,
+    every non-essential parameter below (upscaling_resize, upscaler) is
+    forcibly ignored and the configured defaults are used instead. `save_path`
+    and `return_image` always remain in effect. Call this tool with only the
+    `image_path` argument unless you genuinely need custom values.
 
     Ideal for taking a draft character portrait or map tile and making it
     print-ready without re-generating from scratch.
 
     Args:
         image_path: Path to the image to upscale.
+        acknowledge_custom_parameters: A truthy value ('1'/'true'/'yes'/'on') confirming
+                   you acknowledge the warning above and want the custom values
+                   below. When not set, all non-essential parameters are
+                   ignored and the configured defaults are used.
         upscaling_resize: Multiplier for the output size (e.g. 2.0 = 2x, 4.0 = 4x).
         upscaler: Name of the upscaler model. Common choices:
                   'R-ESRGAN 4x+', 'R-ESRGAN 4x+ Anime6B',
@@ -352,6 +421,10 @@ async def upscale_image(
                    render images (e.g. LM Studio, Claude Desktop). Defaults to
                    False, so the response is text-only and works everywhere.
     """
+    if not is_truthy(acknowledge_custom_parameters):
+        upscaling_resize = UPSCALE_RESIZE
+        upscaler = "R-ESRGAN 4x+"
+
     entry_id = start_request("upscale_image", _params(locals(), "return_image", "image_path"))
 
     b64 = encode_image(image_path)
@@ -394,15 +467,6 @@ def _resolve_sampler(sampler_name: str | None, fallback: str = DEFAULT_SAMPLER) 
     return sampler_name if sampler_name else fallback
 
 
-def _is_truthy(value: str | bool | None) -> bool:
-    """Return True when value is a truthy string ('1'/'true'/'yes'/'on') or boolean True."""
-    if isinstance(value, bool):
-        return value
-    if value is None:
-        return False
-    return str(value).strip().lower() in ("1", "true", "yes", "on")
-
-
 def _resolve_negative_prompt(negative_prompt: str | None, enabled: str | bool | None) -> str:
     """
     Return the effective negative prompt.
@@ -412,7 +476,7 @@ def _resolve_negative_prompt(negative_prompt: str | None, enabled: str | bool | 
     """
     if negative_prompt is not None:
         return negative_prompt
-    if _is_truthy(enabled):
+    if is_truthy(enabled):
         return DEFAULT_NEGATIVE_PROMPT
     return ""
 

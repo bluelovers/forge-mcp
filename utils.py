@@ -48,3 +48,12 @@ def format_error(response: httpx.Response) -> str:
     except Exception:
         detail = response.text
     return f"Forge error {response.status_code}: {detail}"
+
+
+def is_truthy(value: str | bool | None) -> bool:
+    """Return True when value is a truthy string ('1'/'true'/'yes'/'on') or boolean True."""
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    return str(value).strip().lower() in ("1", "true", "yes", "on")

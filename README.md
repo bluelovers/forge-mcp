@@ -76,7 +76,12 @@ copy .env.example .env
 | `DEFAULT_SAVE_PATH` | `output.png` | Default output filename |
 | `DEFAULT_NEGATIVE_PROMPT` | _(blank)_ | Applied when a tool passes `use_default_negative_prompt` |
 | `IMG2IMG_STEPS` / `IMG2IMG_CFG_SCALE` / `IMG2IMG_SAMPLER` | inherits txt2img | Per-tool overrides for img2img |
+| `IMG2IMG_DENOISING_STRENGTH` | `0.6` | img2img denoising strength |
 | `INPAINT_STEPS` / `INPAINT_CFG_SCALE` / `INPAINT_SAMPLER` | inherits txt2img | Per-tool overrides for inpaint |
+| `INPAINT_DENOISING_STRENGTH` | `0.75` | inpaint denoising strength |
+| `INPAINT_MASK_BLUR` | `4` | inpaint mask blur radius |
+| `INPAINT_FILL` | `1` | inpaint fill mode (`0`=fill, `1`=original, `2`=latent noise, `3`=latent nothing) |
+| `UPSCALE_RESIZE` | `2.0` | default upscale multiplier |
 | `LOG_DIR` | `$OUTPUT_DIR` | Directory for the request logbook |
 | `LOG_MAX_ENTRIES` | `100` | Max logbook entries kept |
 | `TIMEOUT_GENERATION` | `300` | Seconds to wait for txt2img/img2img/inpaint/upscale |

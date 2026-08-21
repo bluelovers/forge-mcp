@@ -1,6 +1,6 @@
 from config import TIMEOUT_INFO, TIMEOUT_MODEL_SWITCH
 from mcp_instance import mcp
-from utils import forge_client, format_error
+from utils import forge_client, format_error, is_truthy
 
 
 @mcp.tool()
@@ -26,17 +26,36 @@ async def get_models() -> str:
 
 
 @mcp.tool()
-async def set_model(model_title: str) -> str:
+async def set_model(
+    model_title: str,
+    acknowledge_required_switch: str | bool = "",
+) -> str:
     """
     Switch the active Stable Diffusion checkpoint in Forge.
 
-    Unless you have a specific need or requirement, DO NOT call this tool.
-    Use get_models() first to see the exact title string to pass here.
-    Model switching can take 10-60 seconds depending on model size.
+    ⚠️ WARNING: Switching models arbitrarily can leave the active checkpoint
+    in an unusable state and prevent image generation from succeeding. Only
+    call this tool when a model switch is genuinely necessary — for example
+    when the user explicitly asked for a specific checkpoint.
+
+    Model switching can take 10-60 seconds depending on model size, so the
+    caller must pass a truthy value to acknowledge the switch is required.
 
     Args:
         model_title: The exact title of the model as returned by get_models().
+        acknowledge_required_switch: A truthy value ('1'/'true'/'yes'/'on')
+                   confirming the model switch is truly required. The tool
+                   refuses to switch unless this is set.
     """
+    if not is_truthy(acknowledge_required_switch):
+        return (
+            "Refusing to switch models: arbitrarily switching the active "
+            "checkpoint can prevent image generation from working. set_model "
+            "should only be called when a model switch is genuinely necessary. "
+            "Pass acknowledge_required_switch='1' (or 'true'/'yes'/'on') to "
+            "confirm the switch is required."
+        )
+
     payload = {"sd_model_checkpoint": model_title}
 
     async with forge_client(TIMEOUT_MODEL_SWITCH) as client:

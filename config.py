@@ -64,7 +64,7 @@ LOG_MAX_ENTRIES: int = int(os.getenv("LOG_MAX_ENTRIES", "100"))
 # When enabled, generated images are saved to auto-generated timestamped
 # paths instead of overwriting the same file. Path format:
 #   <OUTPUT_DIR>/<year>/<YYYY-MM-DD>/<YYYYMMDD_HHMMSS>_<ms3>_<counter5>.png
-AUTO_SAVE: bool = os.getenv("AUTO_SAVE", "").strip().lower() in ("1", "true", "yes", "on")
+AUTO_SAVE: bool = os.getenv("AUTO_SAVE", "1").strip().lower() in ("1", "true", "yes", "on")
 
 # Configurable default values for generation parameters (env-overridable).
 DEFAULT_WIDTH: int = int(os.getenv("DEFAULT_WIDTH", "512"))
@@ -92,6 +92,17 @@ IMG2IMG_SAMPLER: str = os.getenv("IMG2IMG_SAMPLER", DEFAULT_SAMPLER)
 INPAINT_STEPS: int = int(os.getenv("INPAINT_STEPS", str(DEFAULT_STEPS)))
 INPAINT_CFG_SCALE: float = float(os.getenv("INPAINT_CFG_SCALE", str(DEFAULT_CFG_SCALE)))
 INPAINT_SAMPLER: str = os.getenv("INPAINT_SAMPLER", DEFAULT_SAMPLER)
+
+# Denoising strength for img2img / inpaint (how much the source is changed).
+IMG2IMG_DENOISING_STRENGTH: float = float(os.getenv("IMG2IMG_DENOISING_STRENGTH", "0.6"))
+INPAINT_DENOISING_STRENGTH: float = float(os.getenv("INPAINT_DENOISING_STRENGTH", "0.75"))
+
+# Inpainting mask controls (blur radius and fill mode).
+INPAINT_MASK_BLUR: int = int(os.getenv("INPAINT_MASK_BLUR", "4"))
+INPAINT_FILL: int = int(os.getenv("INPAINT_FILL", "1"))
+
+# Upscaling default multiplier.
+UPSCALE_RESIZE: float = float(os.getenv("UPSCALE_RESIZE", "2.0"))
 
 # ---------------------------------------------------------------------------
 # Timeouts (seconds)
