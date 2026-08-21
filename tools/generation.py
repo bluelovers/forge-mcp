@@ -7,12 +7,20 @@ import mcp.types as mcp_types
 from config import (
     AUTO_SAVE,
     DEFAULT_BATCH_SIZE,
+    DEFAULT_CFG_SCALE,
     DEFAULT_HEIGHT,
     DEFAULT_NEGATIVE_PROMPT,
     DEFAULT_SAMPLER,
     DEFAULT_SAVE_PATH,
     DEFAULT_SEED,
+    DEFAULT_STEPS,
     DEFAULT_WIDTH,
+    IMG2IMG_CFG_SCALE,
+    IMG2IMG_SAMPLER,
+    IMG2IMG_STEPS,
+    INPAINT_CFG_SCALE,
+    INPAINT_SAMPLER,
+    INPAINT_STEPS,
     OUTPUT_DIR,
     TIMEOUT_GENERATION,
 )
@@ -27,8 +35,8 @@ async def txt2img(
     prompt: str,
     negative_prompt: str | None = None,
     use_default_negative_prompt: str | bool = "",
-    steps: int = 9,
-    cfg_scale: float = 1.0,
+    steps: int = DEFAULT_STEPS,
+    cfg_scale: float = DEFAULT_CFG_SCALE,
     width: int = DEFAULT_WIDTH,
     height: int = DEFAULT_HEIGHT,
     sampler_name: str | None = None,
@@ -130,8 +138,8 @@ async def img2img(
     negative_prompt: str | None = None,
     use_default_negative_prompt: str | bool = "",
     denoising_strength: float = 0.6,
-    steps: int = 20,
-    cfg_scale: float = 7.0,
+    steps: int = IMG2IMG_STEPS,
+    cfg_scale: float = IMG2IMG_CFG_SCALE,
     width: int = 0,
     height: int = 0,
     sampler_name: str | None = None,
@@ -173,7 +181,7 @@ async def img2img(
     entry_id = start_request("img2img", _params(locals(), "return_image", "image_path"))
 
     b64 = encode_image(image_path)
-    sampler_name = _resolve_sampler(sampler_name)
+    sampler_name = _resolve_sampler(sampler_name, IMG2IMG_SAMPLER)
     negative_prompt = _resolve_negative_prompt(negative_prompt, use_default_negative_prompt)
 
     payload = {
@@ -226,8 +234,8 @@ async def inpaint(
     negative_prompt: str | None = None,
     use_default_negative_prompt: str | bool = "",
     denoising_strength: float = 0.75,
-    steps: int = 20,
-    cfg_scale: float = 7.0,
+    steps: int = INPAINT_STEPS,
+    cfg_scale: float = INPAINT_CFG_SCALE,
     sampler_name: str | None = None,
     mask_blur: int = 4,
     inpainting_fill: int = 1,
@@ -272,7 +280,7 @@ async def inpaint(
 
     img_b64 = encode_image(image_path)
     mask_b64 = encode_image(mask_path)
-    sampler_name = _resolve_sampler(sampler_name)
+    sampler_name = _resolve_sampler(sampler_name, INPAINT_SAMPLER)
     negative_prompt = _resolve_negative_prompt(negative_prompt, use_default_negative_prompt)
 
     payload = {
@@ -381,9 +389,9 @@ async def upscale_image(
 # Internal helpers
 # ---------------------------------------------------------------------------
 
-def _resolve_sampler(sampler_name: str | None) -> str:
-    """Return the effective sampler, falling back to DEFAULT_SAMPLER (may be empty)."""
-    return sampler_name if sampler_name else DEFAULT_SAMPLER
+def _resolve_sampler(sampler_name: str | None, fallback: str = DEFAULT_SAMPLER) -> str:
+    """Return the effective sampler, falling back to *fallback* (may be empty)."""
+    return sampler_name if sampler_name else fallback
 
 
 def _is_truthy(value: str | bool | None) -> bool:

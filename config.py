@@ -71,6 +71,8 @@ DEFAULT_WIDTH: int = int(os.getenv("DEFAULT_WIDTH", "512"))
 DEFAULT_HEIGHT: int = int(os.getenv("DEFAULT_HEIGHT", "512"))
 DEFAULT_SEED: int = int(os.getenv("DEFAULT_SEED", "-1"))
 DEFAULT_BATCH_SIZE: int = int(os.getenv("DEFAULT_BATCH_SIZE", "1"))
+DEFAULT_STEPS: int = int(os.getenv("DEFAULT_STEPS", "9"))
+DEFAULT_CFG_SCALE: float = float(os.getenv("DEFAULT_CFG_SCALE", "1.0"))
 
 # Defaults that are "not specified" unless set via env. Empty string means the
 # parameter is left unset and Forge (or the tool) chooses its own default.
@@ -80,6 +82,16 @@ DEFAULT_SAVE_PATH: str = os.getenv("DEFAULT_SAVE_PATH", "")
 # Default negative prompt. Applied when a tool call passes
 # use_default_negative_prompt="1"/"true"/"yes"/"on" and no explicit negative_prompt.
 DEFAULT_NEGATIVE_PROMPT: str = os.getenv("DEFAULT_NEGATIVE_PROMPT", "")
+
+# Per-tool overrides for img2img / inpaint. Each inherits the corresponding
+# txt2img default (DEFAULT_STEPS/CFG_SCALE/SAMPLER) unless overridden via env.
+IMG2IMG_STEPS: int = int(os.getenv("IMG2IMG_STEPS", str(DEFAULT_STEPS)))
+IMG2IMG_CFG_SCALE: float = float(os.getenv("IMG2IMG_CFG_SCALE", str(DEFAULT_CFG_SCALE)))
+IMG2IMG_SAMPLER: str = os.getenv("IMG2IMG_SAMPLER", DEFAULT_SAMPLER)
+
+INPAINT_STEPS: int = int(os.getenv("INPAINT_STEPS", str(DEFAULT_STEPS)))
+INPAINT_CFG_SCALE: float = float(os.getenv("INPAINT_CFG_SCALE", str(DEFAULT_CFG_SCALE)))
+INPAINT_SAMPLER: str = os.getenv("INPAINT_SAMPLER", DEFAULT_SAMPLER)
 
 # ---------------------------------------------------------------------------
 # Timeouts (seconds)
