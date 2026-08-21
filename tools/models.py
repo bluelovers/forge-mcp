@@ -58,6 +58,14 @@ async def set_model(
                    instructed the checkpoint switch. Do not set it on your own
                    initiative — the tool refuses to switch unless this is set.
     """
+    # Guardrail intent: acknowledge_required_switch makes a checkpoint switch a
+    # deliberate, acknowledged action. Without a truthy value the tool refuses
+    # and never contacts Forge, so accidental or arbitrary switching — which
+    # can leave the active checkpoint unusable and break image generation — is
+    # blocked up front. The refusal is a calm note (not a warning) so the agent
+    # is not led to believe it should pass the value; only an explicit user
+    # instruction to switch should ever supply it. The success path carries a
+    # severe warning instead, to discourage further arbitrary switching.
     if not is_truthy(acknowledge_required_switch):
         return (
             "set_model was not called. acknowledge_required_switch was not set, "

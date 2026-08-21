@@ -102,6 +102,10 @@ async def txt2img(
         batch_size != DEFAULT_BATCH_SIZE,
     ))
     acknowledged = is_truthy(acknowledge_custom_parameters)
+    # Guardrail intent: without an acknowledged truthy value, any
+    # non-essential generation parameters supplied by the caller are
+    # discarded and the configured defaults are used, so generation stays
+    # predictable unless the user explicitly requested specific values.
     if not is_truthy(acknowledge_custom_parameters):
         negative_prompt = None
         steps = DEFAULT_STEPS
@@ -234,6 +238,10 @@ async def img2img(
         seed != DEFAULT_SEED,
     ))
     acknowledged = is_truthy(acknowledge_custom_parameters)
+    # Guardrail intent: without an acknowledged truthy value, any
+    # non-essential generation parameters supplied by the caller are
+    # discarded and the configured defaults are used, so generation stays
+    # predictable unless the user explicitly requested specific values.
     if not is_truthy(acknowledge_custom_parameters):
         negative_prompt = None
         denoising_strength = IMG2IMG_DENOISING_STRENGTH
@@ -365,6 +373,10 @@ async def inpaint(
         seed != DEFAULT_SEED,
     ))
     acknowledged = is_truthy(acknowledge_custom_parameters)
+    # Guardrail intent: without an acknowledged truthy value, any
+    # non-essential generation parameters supplied by the caller are
+    # discarded and the configured defaults are used, so generation stays
+    # predictable unless the user explicitly requested specific values.
     if not is_truthy(acknowledge_custom_parameters):
         negative_prompt = None
         denoising_strength = INPAINT_DENOISING_STRENGTH
@@ -467,6 +479,10 @@ async def upscale_image(
         or upscaler != "R-ESRGAN 4x+"
     )
     acknowledged = is_truthy(acknowledge_custom_parameters)
+    # Guardrail intent: without an acknowledged truthy value, any
+    # non-essential generation parameters supplied by the caller are
+    # discarded and the configured defaults are used, so generation stays
+    # predictable unless the user explicitly requested specific values.
     if not is_truthy(acknowledge_custom_parameters):
         upscaling_resize = UPSCALE_RESIZE
         upscaler = "R-ESRGAN 4x+"
