@@ -1,6 +1,55 @@
-from config import TIMEOUT_CONTROL
+from config import (
+    FORGE_API_PASSWORD,
+    FORGE_API_USER,
+    FORGE_URL,
+    LOG_DIR,
+    LOG_MAX_ENTRIES,
+    OUTPUT_DIR,
+    TIMEOUT_CONTROL,
+    TIMEOUT_GENERATION,
+    TIMEOUT_INFO,
+    TIMEOUT_MODEL_SWITCH,
+)
+import fastmcp
+import json
+from logbook import LOG_FILE
 from mcp_instance import mcp
 from utils import forge_client, format_error
+
+
+def _mask(value: str) -> str:
+    """Mask a secret, keeping only a hint of its length/shape."""
+    if not value:
+        return "(not set)"
+    return f"***** (len {len(value)})"
+
+
+@mcp.tool()
+async def info() -> str:
+    """
+    Show server runtime information: fastmcp version and configuration values.
+
+    Credentials (account / password) are masked so their contents are never
+    revealed. Also reports the request logbook location. Returns a formatted
+    JSON string with line breaks and indentation.
+    """
+    payload = {
+        "FASTMCP_VERSION": fastmcp.__version__,
+        "FORGE_URL": FORGE_URL,
+        "FORGE_API_USER": _mask(FORGE_API_USER),
+        "FORGE_API_PASSWORD": _mask(FORGE_API_PASSWORD),
+        "OUTPUT_DIR": str(OUTPUT_DIR),
+        "LOG_DIR": str(LOG_DIR),
+        "LOG_FILE": str(LOG_FILE),
+        "LOG_MAX_ENTRIES": LOG_MAX_ENTRIES,
+        "TIMEOUTS_SECONDS": {
+            "TIMEOUT_GENERATION": TIMEOUT_GENERATION,
+            "TIMEOUT_MODEL_SWITCH": TIMEOUT_MODEL_SWITCH,
+            "TIMEOUT_INFO": TIMEOUT_INFO,
+            "TIMEOUT_CONTROL": TIMEOUT_CONTROL,
+        },
+    }
+    return json.dumps(payload, indent=2, ensure_ascii=False)
 
 
 @mcp.tool()
@@ -21,14 +70,18 @@ async def get_progress() -> str:
     progress = data.get("progress", 0)
 
     if progress == 0 and not data.get("state", {}).get("job_count"):
-        return "Forge is idle — no generation in progress."
+        return (
+            "Forge is idle — no generation in progress.\n"
+            f"Request logbook: {LOG_FILE}"
+        )
 
     eta = data.get("eta_relative", 0)
     job = data.get("state", {}).get("job", "unknown")
     return (
         f"Generation in progress: {progress * 100:.1f}% complete\n"
         f"Current job: {job}\n"
-        f"ETA: {eta:.1f}s"
+        f"ETA: {eta:.1f}s\n"
+        f"Request logbook: {LOG_FILE}"
     )
 
 
@@ -46,4 +99,7 @@ async def interrupt_generation() -> str:
     if response.status_code != 200:
         return format_error(response)
 
-    return "Generation interrupted."
+    return (
+        "Generation interrupted.\n"
+        f"Request logbook: {LOG_FILE}"
+    )

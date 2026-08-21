@@ -1,9 +1,11 @@
+import json
 from pathlib import Path
 
 import mcp.types as mcp_types
 
 from config import OUTPUT_DIR, TIMEOUT_GENERATION
 from fastmcp.utilities.types import Image
+from logbook import finish_request, start_request
 from mcp_instance import mcp
 from utils import decode_and_save, encode_image, forge_client, format_error
 
@@ -48,6 +50,8 @@ async def txt2img(
                    other clients receive them as opaque blocks. Defaults to
                    False, so the response is text-only and works everywhere.
     """
+    entry_id = start_request("txt2img", _params(locals(), "return_image"))
+
     payload = {
         "prompt": prompt,
         "negative_prompt": negative_prompt,
@@ -64,6 +68,7 @@ async def txt2img(
         response = await client.post("/sdapi/v1/txt2img", json=payload)
 
     if response.status_code != 200:
+        finish_request(entry_id, "error")
         return format_error(response)
 
     data = response.json()
@@ -83,6 +88,8 @@ async def txt2img(
         f"Saved to: {', '.join(saved)}\n"
         f"Seeds used: {seeds}"
     )
+
+    finish_request(entry_id, "success", saved)
 
     if return_image:
         return [summary, *(Image(path=str(out)).to_image_content() for out in saved)]
@@ -129,6 +136,8 @@ async def img2img(
                    render images (e.g. LM Studio, Claude Desktop). Defaults to
                    False, so the response is text-only and works everywhere.
     """
+    entry_id = start_request("img2img", _params(locals(), "return_image", "image_path"))
+
     b64 = encode_image(image_path)
 
     payload = {
@@ -150,6 +159,7 @@ async def img2img(
         response = await client.post("/sdapi/v1/img2img", json=payload)
 
     if response.status_code != 200:
+        finish_request(entry_id, "error")
         return format_error(response)
 
     data = response.json()
@@ -158,11 +168,13 @@ async def img2img(
     used_seed = info.get("seed", seed) if isinstance(info, dict) else seed
 
     if not images:
+        finish_request(entry_id, "error")
         return "No images returned by Forge."
 
     out = _resolve_path(save_path)
     decode_and_save(images[0], str(out))
     summary = f"img2img complete. Saved to '{out}'. Seed: {used_seed}"
+    finish_request(entry_id, "success", [str(out)])
     if return_image:
         return [summary, Image(path=str(out)).to_image_content()]
     return summary
@@ -210,6 +222,8 @@ async def inpaint(
                    render images (e.g. LM Studio, Claude Desktop). Defaults to
                    False, so the response is text-only and works everywhere.
     """
+    entry_id = start_request("inpaint", _params(locals(), "return_image", "image_path", "mask_path"))
+
     img_b64 = encode_image(image_path)
     mask_b64 = encode_image(mask_path)
 
@@ -232,17 +246,20 @@ async def inpaint(
         response = await client.post("/sdapi/v1/img2img", json=payload)
 
     if response.status_code != 200:
+        finish_request(entry_id, "error")
         return format_error(response)
 
     data = response.json()
     images = data.get("images", [])
 
     if not images:
+        finish_request(entry_id, "error")
         return "No images returned by Forge."
 
     out = _resolve_path(save_path)
     decode_and_save(images[0], str(out))
     summary = f"Inpainting complete. Saved to '{out}'."
+    finish_request(entry_id, "success", [str(out)])
     if return_image:
         return [summary, Image(path=str(out)).to_image_content()]
     return summary
@@ -274,6 +291,8 @@ async def upscale_image(
                    render images (e.g. LM Studio, Claude Desktop). Defaults to
                    False, so the response is text-only and works everywhere.
     """
+    entry_id = start_request("upscale_image", _params(locals(), "return_image", "image_path"))
+
     b64 = encode_image(image_path)
 
     payload = {
@@ -286,16 +305,19 @@ async def upscale_image(
         response = await client.post("/sdapi/v1/extra-single-image", json=payload)
 
     if response.status_code != 200:
+        finish_request(entry_id, "error")
         return format_error(response)
 
     data = response.json()
     img_b64 = data.get("image")
     if not img_b64:
+        finish_request(entry_id, "error")
         return "Forge returned no image data."
 
     out = _resolve_path(save_path)
     decode_and_save(img_b64, str(out))
     summary = f"Upscaled {upscaling_resize}x using '{upscaler}'. Saved to '{out}'."
+    finish_request(entry_id, "success", [str(out)])
     if return_image:
         return [summary, Image(path=str(out)).to_image_content()]
     return summary
@@ -309,3 +331,40 @@ def _resolve_path(save_path: str) -> Path:
     """Return an absolute Path, placing relative paths inside OUTPUT_DIR."""
     p = Path(save_path)
     return p if p.is_absolute() else OUTPUT_DIR / p
+
+
+# Names of arguments that carry large or binary content and should be omitted
+# from the logbook to keep it readable (file paths are still useful, so the
+# caller excludes them explicitly when they duplicate the output path).
+_PARAM_EXCLUDE = {
+    "return_image",
+    "image_path",
+    "mask_path",
+}
+
+
+def _params(locals_dict: dict, *extra_exclude: str) -> dict:
+    """
+    Build a loggable copy of the tool's parameters.
+
+    Drops the return flag, any file/binary args, and values that would bloat
+    or break the logbook (base64 blobs, images, non-JSON objects), keeping only
+    small scalar parameters.
+    """
+    exclude = _PARAM_EXCLUDE | set(extra_exclude)
+    clean = {}
+    for key, value in locals_dict.items():
+        if key in exclude or key.startswith("_"):
+            continue
+        # Skip large/opaque values such as base64 image payloads.
+        if isinstance(value, str) and len(value) > 256:
+            continue
+        if isinstance(value, (list, dict)) and len(str(value)) > 512:
+            continue
+        # Skip anything that isn't JSON-serializable (e.g. async clients).
+        try:
+            json.dumps(value)
+        except (TypeError, ValueError):
+            continue
+        clean[key] = value
+    return clean

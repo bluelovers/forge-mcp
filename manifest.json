@@ -49,7 +49,6 @@
       "type": "directory",
       "title": "Output Directory",
       "description": "Folder where generated images will be saved",
-      "default": "${DOCUMENTS}/forge-painter",
       "required": true
     }
   }
